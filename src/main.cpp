@@ -196,6 +196,10 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
+  //Set reference velocity in m/s
+  double reference_velocity = 10.0;
+  
+
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -203,6 +207,10 @@ int main() {
     // The 2 signifies a websocket event
     //auto sdata = string(data).substr(0, length);
     //cout << sdata << endl;
+
+    //Set reference lane: 0 for left lane, 1 for middle, 2 for right lane
+    int lane = 1;
+
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
       auto s = hasData(data);
@@ -240,14 +248,18 @@ int main() {
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
-          	double dist_inc = 5.0;
+          	double dist_inc = 0.4;
             
             for(int i = 0; i < 50; i++)
             {
-              //next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
-              //next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
-              next_x_vals.push_back(car_x+(dist_inc*i));
-              next_y_vals.push_back(car_y+(dist_inc*i));
+              
+              double next_s = car_s + (dist_inc*i);
+              double next_d = lane * 4 + 2;
+
+              vector<double> next_xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+              next_x_vals.push_back(next_xy[0]);
+              next_y_vals.push_back(next_xy[1]);
             }
 
             //END
