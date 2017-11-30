@@ -244,24 +244,31 @@ int main() {
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
 
-            //Checking if there is a car in front
+            //SITUATIONAL AWARENESS - get clarity on what's what: which lanes are safe to drive? What is the 'speed' that would be possible in each lane?
 
+            
               //Cycle through all cars from the sensor fusion vector
               
-              bool front_warning = false;
-              bool change_lane;
+              //bool front_warning = false;
+              //bool change_lane;
           
 
               for(int i = 0; i < sensor_fusion.size(); i++)
               {
 
+                //other car's s pose
                 double other_car_s = sensor_fusion[i][5]; 
                 double s_distance = other_car_s - end_path_s;
 
+                //other car's d pose
                 double other_car_d = sensor_fusion[i][6];
                 double d_distance = other_car_d - end_path_d;
 
-                
+                //other car's velocity
+                double other_car_vx = sensor_fusion[i][3]; 
+                double other_car_vy = sensor_fusion[i][4];
+                double other_car_speed = sqrt(other_car_vx*other_car_vx + other_car_vy*other_car_vy);
+              
 
                 //check if car is in our path and in same lane
                 if (s_distance > 1 && s_distance < 10.0 && abs(d_distance) < 1.0)
