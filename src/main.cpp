@@ -199,12 +199,13 @@ int main() {
 
   //Set reference velocity in m/s
   double reference_velocity = 0.0;
+  double const MAX_SPEED = 21.5;
 
   //Set reference lane: 0 for left lane, 1 for middle, 2 for right lane
   int lane = 1;
   
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane,&reference_velocity](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane,&reference_velocity,&MAX_SPEED](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -247,18 +248,26 @@ int main() {
             //SITUATIONAL AWARENESS - get clarity on what's what: which lanes are safe to drive? What is the 'speed' that would be possible in each lane?
 
             
-              //Cycle through all cars from the sensor fusion vector
+
+
+
+            bool car_left = false;
+            bool car_mid = false;
+            bool car_right = false;
+
+            double left_maxspeed = MAX_SPEED;
+            double mid_maxspeed = MAX_SPEED;
+            double right_maxspeed = MAX_SPEED;
+
+
+              //Cycle through all cars from the sensor fusion vector, find out lane, distance to us, speed difference
               
-              //bool front_warning = false;
-              //bool change_lane;
-          
+              //TODO - delete these old variables
+              bool front_warning = false;
+              bool change_lane;
 
               for(int i = 0; i < sensor_fusion.size(); i++)
               {
-
-                //other car's s pose
-                double other_car_s = sensor_fusion[i][5]; 
-                double s_distance = other_car_s - end_path_s;
 
                 //other car's d pose
                 double other_car_d = sensor_fusion[i][6];
@@ -268,7 +277,66 @@ int main() {
                 double other_car_vx = sensor_fusion[i][3]; 
                 double other_car_vy = sensor_fusion[i][4];
                 double other_car_speed = sqrt(other_car_vx*other_car_vx + other_car_vy*other_car_vy);
-              
+
+                //other car's s pose
+                double other_car_s = sensor_fusion[i][5]; 
+                double other_car_s_future = other_car_s + previous_path_x.size() * other_car_speed * 0.02;
+                double s_distance = other_car_s - end_path_s;
+
+
+                //determine other car's lane
+                int other_car_lane = -1;
+
+                //TODO: find more elegant math, e.g., divide by 4 and round to get lane number 
+                if (other_car_d > 0 && other_car_d < 4) 
+                  {other_car_lane = 0;}
+                if (other_car_d > 4 && other_car_d < 8) 
+                  {other_car_lane = 1;}
+                if (other_car_d > 8 && other_car_d < 12) 
+                  {other_car_lane = 2;}
+
+                //debug messages
+                //std::cout << "Other car " << sensor_fusion[i][0] << " is in lane " << other_car_lane << " at a distance of " << s_distance << std::endl;
+
+                
+                // evaluate what cars position means for the lane attractiveness 
+                  const int MAX_DISTANCE_AHEAD = 100;
+                  const int MIN_DISTANCE_AHEAD = 0;
+
+                  //for left lane
+                  if (other_car_lane == 0 && s_distance < MAX_DISTANCE_AHEAD && s_distance > MIN_DISTANCE_AHEAD)
+                  {
+                   car_left = true;
+                   //std::cout << "Left lane current max speed: " << left_maxspeed << " other_car_speed: " << other_car_speed << std::endl;
+                   if (other_car_speed < left_maxspeed)
+                   {
+                    left_maxspeed = other_car_speed;
+                   }
+                   //left_maxspeed = std::min(other_car_speed, left_maxspeed); //TODO: Investigate why this throws an error
+                   std::cout << "Left lane max speed set to " << left_maxspeed << std::endl;
+                  } 
+                
+                  //for mid lane
+                  if (other_car_lane == 1 && s_distance < MAX_DISTANCE_AHEAD && s_distance > MIN_DISTANCE_AHEAD)
+                  {
+                   car_mid = true;
+                   if (other_car_speed < mid_maxspeed)
+                   {
+                    mid_maxspeed = other_car_speed;
+                   }
+                   std::cout << "Mid lane max speed set to " << mid_maxspeed << std::endl;
+                  }
+
+                  //for right lane
+                  if (other_car_lane == 2 && s_distance < MAX_DISTANCE_AHEAD && s_distance > MIN_DISTANCE_AHEAD)
+                  {
+                   car_right = true;
+                   if (other_car_speed < right_maxspeed)
+                   {
+                    right_maxspeed = other_car_speed;
+                   }
+                   std::cout << "Right lane max speed set to " << right_maxspeed << std::endl;
+                  } 
 
                 //check if car is in our path and in same lane
                 if (s_distance > 1 && s_distance < 10.0 && abs(d_distance) < 1.0)
@@ -277,8 +345,6 @@ int main() {
                   front_warning = true;
                   change_lane = true;
                 }
-
-
               }
 
             //END of checking if there is a car in front routine
