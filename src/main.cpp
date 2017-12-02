@@ -251,9 +251,9 @@ int main() {
 
 
 
-            bool car_left = false;
-            bool car_mid = false;
-            bool car_right = false;
+            int car_left = 0;
+            int car_mid = 0;
+            int car_right = 0;
 
             double left_maxspeed = MAX_SPEED;
             double mid_maxspeed = MAX_SPEED;
@@ -281,7 +281,7 @@ int main() {
                 //other car's s pose
                 double other_car_s = sensor_fusion[i][5]; 
                 double other_car_s_future = other_car_s + previous_path_x.size() * other_car_speed * 0.02;
-                double s_distance = other_car_s - end_path_s;
+                double s_distance = other_car_s_future - end_path_s;
 
 
                 //determine other car's lane
@@ -299,146 +299,152 @@ int main() {
                 //std::cout << "Other car " << sensor_fusion[i][0] << " is in lane " << other_car_lane << " at a distance of " << s_distance << std::endl;
 
                 
-                // evaluate what cars position means for the lane attractiveness 
-                  const int MAX_DISTANCE_AHEAD = 100;
+                // evaluate what position and speed of other cars means for the lane attractiveness 
+                  
+                  //Variables used to evaluate attractiveness of the lane going forward
+                  const int MAX_DISTANCE_AHEAD = 60;
                   const int MIN_DISTANCE_AHEAD = 0;
+
+                  //Variables used to evaluate ability of the car to move into the lane, i.e. sideway availability
+                  const int MAX_DISTANCE_SIDE = 15;
+                  const int MIN_DISTANCE_SIDE = -15;
+
 
                   //for left lane
                   if (other_car_lane == 0 && s_distance < MAX_DISTANCE_AHEAD && s_distance > MIN_DISTANCE_AHEAD)
                   {
-                   car_left = true;
-                   //std::cout << "Left lane current max speed: " << left_maxspeed << " other_car_speed: " << other_car_speed << std::endl;
+                   //std::cout << "Left lane current max speed: " << left_maxspeed << " other_car_speed: " << other_car_speed << std::endl;         
                    if (other_car_speed < left_maxspeed)
                    {
                     left_maxspeed = other_car_speed;
                    }
                    //left_maxspeed = std::min(other_car_speed, left_maxspeed); //TODO: Investigate why this throws an error
-                   std::cout << "Left lane max speed set to " << left_maxspeed << std::endl;
+                   //std::cout << "Left lane max speed set to " << left_maxspeed << std::endl;
                   } 
                 
                   //for mid lane
                   if (other_car_lane == 1 && s_distance < MAX_DISTANCE_AHEAD && s_distance > MIN_DISTANCE_AHEAD)
                   {
-                   car_mid = true;
                    if (other_car_speed < mid_maxspeed)
                    {
                     mid_maxspeed = other_car_speed;
                    }
-                   std::cout << "Mid lane max speed set to " << mid_maxspeed << std::endl;
+                   //std::cout << "Mid lane max speed set to " << mid_maxspeed << std::endl;
                   }
 
                   //for right lane
                   if (other_car_lane == 2 && s_distance < MAX_DISTANCE_AHEAD && s_distance > MIN_DISTANCE_AHEAD)
                   {
-                   car_right = true;
                    if (other_car_speed < right_maxspeed)
                    {
                     right_maxspeed = other_car_speed;
                    }
-                   std::cout << "Right lane max speed set to " << right_maxspeed << std::endl;
+                   //std::cout << "Right lane max speed set to " << right_maxspeed << std::endl;
                   } 
 
+                  //evaluate if the car can switch to the lane without collision
+                  //for left lane
+                  if (other_car_lane == 0 && s_distance < MAX_DISTANCE_SIDE && s_distance > MIN_DISTANCE_SIDE)
+                  {
+                   car_left = 1;
+                  }
+                  //for mid lane
+                  if (other_car_lane == 1 && s_distance < MAX_DISTANCE_SIDE && s_distance > MIN_DISTANCE_SIDE)
+                  {
+                   car_mid = 1;
+                  }
+                  //for right lane
+                  if (other_car_lane == 2 && s_distance < MAX_DISTANCE_SIDE && s_distance > MIN_DISTANCE_SIDE)
+                  {
+                   car_right = 1;
+                  }
+
+
+
+                //TODO - delete
                 //check if car is in our path and in same lane
-                if (s_distance > 1 && s_distance < 10.0 && abs(d_distance) < 1.0)
+                if (s_distance > 1 && s_distance < 15.0 && abs(d_distance) < 1.0)
                 {
                   
                   front_warning = true;
                   change_lane = true;
                 }
-              }
+              } // END of cycling throught the other cars array
 
-            //END of checking if there is a car in front routine
+            //COST FUNCTION: with the situation in lanes clear, what should the car do?
 
-      
-    
+            const int COLLISION_PENALTY = 1000;
+            const int LANE_CHANGE_PENALTY = 100;
+            const int SLOW_SPEED_PENALTY = 40;
+
+            //objective lane attractiveness - not taking into account car's actual position. Just decide which would be the ideal lane to be in. Basically just based on speed.
+
+            int left_lane_cost = SLOW_SPEED_PENALTY * (MAX_SPEED - left_maxspeed);
+            int mid_lane_cost = SLOW_SPEED_PENALTY * (MAX_SPEED - mid_maxspeed);
+            int right_lane_cost = SLOW_SPEED_PENALTY * (MAX_SPEED - right_maxspeed);
+
+            //relative attractiveness - taking into account required manuevers
+
+            if (lane == 0)
+            {
+              left_lane_cost += 0;
+              mid_lane_cost += LANE_CHANGE_PENALTY + car_mid * COLLISION_PENALTY;
+              right_lane_cost += 2 * LANE_CHANGE_PENALTY + (car_mid + car_right) * COLLISION_PENALTY;
+            }
+
+            if (lane == 1)
+            {
+              left_lane_cost += LANE_CHANGE_PENALTY + car_left * COLLISION_PENALTY;
+              mid_lane_cost += 0;
+              right_lane_cost += LANE_CHANGE_PENALTY + car_right * COLLISION_PENALTY;
+            }
+
+            if (lane == 2)
+            {
+              left_lane_cost += 2 * LANE_CHANGE_PENALTY + (car_mid + car_left) * COLLISION_PENALTY;
+              mid_lane_cost += LANE_CHANGE_PENALTY + car_mid * COLLISION_PENALTY;
+              right_lane_cost += 0;
+            }
+
+            std::cout << "LEFT\t\tMIDD\t\tRIGH"<< std::endl;
+            std::cout << left_lane_cost<<"\t\t"<<mid_lane_cost<<"\t\t"<<right_lane_cost<<std::endl;
+
+
 
             // Speed adjustment routine - do we need to speed up or slow down?
 
-            if (front_warning || change_lane)
-            {
-              
-              if(reference_velocity > 14.0)
-              {
-                reference_velocity -= .1;
-              }
-
-              if(reference_velocity < 17.0)
-              {
-
-                //here goes the lane changing logic
-
-                bool ok_to_go_left = false;
-                bool ok_to_go_right = false;
-
-
-                //check lane to the left - is it OK to drive
-
-
-                if(lane > 0){ //first of all check if that we're not in the leftmost lane already
-
-                  //now check all the cars in that lane
-                  int collisions_left = 0;           
-                  for(int i = 0; i < sensor_fusion.size(); i++)
-                  {
-
-                      double other_car_s = sensor_fusion[i][5]; 
-                      double s_distance = other_car_s - car_s;
-
-                      double other_car_d = sensor_fusion[i][6];
-                      double d_distance = other_car_d - (car_d - 4.0);
-                    if (s_distance > -20.0 && s_distance < 25.0 && abs(d_distance) < 1.0)
-                    {
-                      collisions_left += 1;
-                    }
-                  }
-                  if(collisions_left == 0)
-                  {
-                    lane -= 1;
-                    change_lane = false;
-                  }
-                }
-
-                else 
-                if(lane < 2){ //first of all check if that we're not in the rightmost lane already
-
-                  //now check all the cars in that lane
-                  int collisions_right = 0;           
-                  for(int i = 0; i < sensor_fusion.size(); i++)
-                  {
-
-                      double other_car_s = sensor_fusion[i][5]; 
-                      double s_distance = other_car_s - car_s;
-
-                      double other_car_d = sensor_fusion[i][6];
-                      double d_distance = other_car_d - (car_d + 4.0);
-                    if (s_distance > -20.0 && s_distance < 25.0 && abs(d_distance) < .5)
-                    {
-                      collisions_right += 1;
-                    }
-                  }
-                  if(collisions_right == 0)
-                  {
-                    lane += 1;
-                    change_lane = false;
-                  }
-                }
-
-
-                
-                // END of lane - chaning logic
-
-              }
-            }
-            else {
-
-              if(reference_velocity < 21.5 && !change_lane)
-              {
-                reference_velocity += .1;
-              }
-            }
-
+            double all_lanes_velocity[3] = {left_maxspeed, mid_maxspeed, right_maxspeed};
+            double current_lane_max_speed = all_lanes_velocity[lane];
 
             
+            if (front_warning)
+            {
+              reference_velocity -= 0.2;
+            }
+            else
+            {
+              if (reference_velocity < (current_lane_max_speed + .5))
+              {
+                reference_velocity += 0.1;
+              }
+              if (reference_velocity > (current_lane_max_speed + .5))
+              {
+                reference_velocity -=0.03;
+              }
+            }
+
+            // decision logic
+            //TODO - streamline this bruteforce logic
+            double best_lane = -1;
+            if (left_lane_cost < mid_lane_cost && left_lane_cost < right_lane_cost) {best_lane = 0;}
+            if (mid_lane_cost < left_lane_cost && mid_lane_cost < right_lane_cost) {best_lane = 1;}
+            if (right_lane_cost < left_lane_cost && right_lane_cost < mid_lane_cost) {best_lane = 2;}
+           
+            //std::cout<<"Best lane: "<<best_lane<<std::endl;
+          
+            // lane change
+            if (best_lane > lane) {lane++;}
+            if (best_lane < lane) {lane--;}
 
 
 
@@ -480,10 +486,11 @@ int main() {
 
               //Next generate some waypoints far up ahead using the Frenet coordinates
               //Spacing used here: 25 meters apart
+              //TODO - make the distance between waypoints variable depending on ego car current velocity
 
-              vector<double> next_waypoint0 = getXY(car_s+35, (lane*4+2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-              vector<double> next_waypoint1 = getXY(car_s+70, (lane*4+2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-              vector<double> next_waypoint2 = getXY(car_s+105, (lane*4+2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+              vector<double> next_waypoint0 = getXY(car_s+25+reference_velocity, (lane*4+2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+              vector<double> next_waypoint1 = getXY(car_s+50+(2*reference_velocity), (lane*4+2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+              vector<double> next_waypoint2 = getXY(car_s+75+(3*reference_velocity), (lane*4+2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
               spline_seed_x.push_back(next_waypoint0[0]);
               spline_seed_x.push_back(next_waypoint1[0]);
@@ -508,6 +515,7 @@ int main() {
 
               //initiate the spline
               tk::spline s;
+              //std::cout << "spline_seed_x: " << std::endl;
 
               //Use the seed points to generate the spline
               s.set_points(spline_seed_x,spline_seed_y);
@@ -534,7 +542,7 @@ int main() {
 
 
             // Figuring out how to space points from the spline
-            double anchor_point_x = 40.0;
+            double anchor_point_x = 30.0;
             double anchor_point_y = s(anchor_point_x);
 
             double distance_to_anchor  = distance(0,0,anchor_point_x,anchor_point_y);
