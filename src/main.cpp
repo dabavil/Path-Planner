@@ -199,7 +199,7 @@ int main() {
 
   //Set reference velocity in m/s
   double reference_velocity = 0.0;
-  double const MAX_SPEED = 21.5;
+  double const MAX_SPEED = 21.7;
 
   //Set reference lane: 0 for left lane, 1 for middle, 2 for right lane
   int lane = 1;
@@ -262,7 +262,6 @@ int main() {
 
               //Cycle through all cars from the sensor fusion vector, find out lane, distance to us, speed difference
               
-              //TODO - delete these old variables
               bool front_warning = false;
               bool change_lane;
 
@@ -359,15 +358,10 @@ int main() {
                    car_right = 1;
                   }
 
-
-
-                //TODO - delete
-                //check if car is in our path and in same lane
-                if (s_distance > 1 && s_distance < 15.0 && abs(d_distance) < 1.0)
+                //check if car is in our path and in same lane,if so issue a front warning flag
+                if (s_distance > 0 && s_distance < 15.0 && abs(d_distance) < 1.0)
                 {
-                  
                   front_warning = true;
-                  change_lane = true;
                 }
               } // END of cycling throught the other cars array
 
@@ -419,7 +413,7 @@ int main() {
             
             if (front_warning)
             {
-              reference_velocity -= 0.2;
+              reference_velocity -= 0.3;
             }
             else
             {
@@ -486,7 +480,7 @@ int main() {
 
               //Next generate some waypoints far up ahead using the Frenet coordinates
               //Spacing used here: 25 meters apart
-              //TODO - make the distance between waypoints variable depending on ego car current velocity
+              //distance between waypoints variable depending on ego car current velocity
 
               vector<double> next_waypoint0 = getXY(car_s+25+reference_velocity, (lane*4+2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
               vector<double> next_waypoint1 = getXY(car_s+50+(2*reference_velocity), (lane*4+2), map_waypoints_s, map_waypoints_x, map_waypoints_y);
